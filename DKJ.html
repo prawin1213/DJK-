@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GeoMap 2D/3D, Reservoir Analysis & Interactive Learning Suite</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  html{scroll-behavior:smooth}
+  body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  .drawer{transition:transform .28s ease}
+  .drawer-overlay{transition:opacity .25s ease}
+  .grid-cell{min-width:68px}
+  .glass{backdrop-filter:blur(14px);background:rgba(15,23,42,.78)}
+  .card{border:1px solid rgba(148,163,184,.18);box-shadow:0 15px 40px rgba(15,23,42,.08)}
+  .metric{background:linear-gradient(135deg,rgba(15,23,42,.96),rgba(30,41,59,.94))}
+  .plot{width:100%;min-height:480px}
+  @media(max-width:768px){.plot{min-height:360px}.grid-cell{min-width:54px}}
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100">
+
+<div id="landing" class="min-h-screen flex items-center justify-center relative overflow-hidden">
+  <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(14,165,233,.18),transparent_38%),radial-gradient(circle_at_80%_80%,rgba(16,185,129,.12),transparent_35%)]"></div>
+  <button onclick="toggleDrawer()" aria-label="Open navigation"
+    class="fixed top-5 left-5 z-50 w-12 h-12 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-2xl">≡</button>
+  <div class="relative text-center">
+    <div class="text-7xl md:text-9xl font-black tracking-[.25em] text-white">WELCOME</div>
+  </div>
+</div>
+
+<div id="overlay" onclick="toggleDrawer()" class="fixed inset-0 bg-black/60 opacity-0 pointer-events-none z-40 drawer-overlay"></div>
+<aside id="drawer" class="drawer fixed left-0 top-0 bottom-0 w-[310px] max-w-[88vw] bg-slate-900 z-50 -translate-x-full border-r border-slate-700 overflow-y-auto">
+  <div class="p-5 border-b border-slate-700 flex items-center justify-between">
+    <div><div class="font-black text-lg">GeoMap Suite</div><div class="text-xs text-slate-400">2D / 3D • Reservoir • Learning</div></div>
+    <button onclick="toggleDrawer()" class="text-2xl text-slate-400">×</button>
+  </div>
+  <nav class="p-3 space-y-1">
+    <button class="nav w-full text-left" onclick="go('notes')">📚 <span>Notes</span><small>50 + 50 study pages</small></button>
+    <button class="nav w-full text-left" onclick="go('construct')">🗺️ <span>Construct a Map</span><small>Data → 2D → 3D → analysis</small></button>
+    <button class="nav w-full text-left" onclick="go('depth')">🧮 <span>Depth & Oil Judgment</span><small>Standalone analytical engine</small></button>
+    <button class="nav w-full text-left" onclick="go('sandbox')">🌐 <span>2D & 3D Interactive Maps</span><small>Geological playground</small></button>
+    <button class="nav w-full text-left" onclick="go('quiz')">🧠 <span>Interactive Quiz</span><small>Page-customized MCQs</small></button>
+  </nav>
+  <div class="m-4 p-4 rounded-2xl bg-slate-800 text-xs text-slate-400">
+    Educational visualization only. Drilling recommendations are computational/geological study aids, not field or investment decisions.
+  </div>
+</aside>
+
+<main id="app" class="hidden min-h-screen">
+<header class="sticky top-0 z-30 bg-slate-950/90 backdrop-blur border-b border-slate-800">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+    <button onclick="toggleDrawer()" class="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700">≡</button>
+    <div class="font-bold truncate">GeoMap 2D/3D, Reservoir Analysis & Interactive Learning Suite</div>
+  </div>
+</header>
+<section id="content" class="max-w-7xl mx-auto p-4 md:p-6"></section>
+</main>
+
+<style>
+.nav{padding:14px;border-radius:12px;color:#cbd5e1;display:flex;gap:10px;align-items:center}
+.nav:hover{background:#1e293b;color:white}
+.nav span{font-weight:700}.nav small{display:block;color:#64748b;font-size:10px;margin-left:auto}
+.btn{padding:.65rem .9rem;border-radius:.7rem;background:#0284c7;font-weight:700}.btn:hover{background:#0369a1}
+.btn2{padding:.65rem .9rem;border-radius:.7rem;background:#1e293b;border:1px solid #334155;font-weight:700}.btn2:hover{background:#334155}
+.input{background:#0f172a;border:1px solid #334155;border-radius:.65rem;padding:.55rem .7rem;width:100%;color:white}
+.select{background:#0f172a;border:1px solid #334155;border-radius:.65rem;padding:.55rem .7rem;color:white}
+.section-title{font-size:1.45rem;font-weight:900}.muted{color:#94a3b8}
+</style>
+
+<script>
+const state={
+ page:'notes', rows:5, cols:6, grid:[], noteTopic:'2d', notePage:1,
+ depthGrid:'', quizSubject:'2d', quizPage:1, quizAnswers:{}, quizSubmitted:false,
+ sandbox:'dome'
+};
+
+function initGrid(r=5,c=6){
+ state.rows=r;state.cols=c;state.grid=Array.from({length:r},(_,i)=>Array.from({length:c},(_,j)=>Number((100 + 8*Math.sin(i/2)+7*Math.cos(j/2)+3*Math.sin((i+j)/2)).toFixed(1))));
+}
+initGrid();
+
+function toggleDrawer(){
+ const d=document.getElementById('drawer'),o=document.getElementById('overlay');
+ const open=d.classList.contains('translate-x-0');
+ d.classList.toggle('-translate-x-full',open);d.classList.toggle('translate-x-0',!open);
+ o.classList.toggle('opacity-0',open);o.classList.toggle('pointer-events-none',open);
+}
+function go(p){
+ state.page=p;
+ document.getElementById('landing').classList.add('hidden');
+ document.getElementById('app').classList.remove('hidden');
+ render();
+ const d=document.getElementById('drawer'); if(d.classList.contains('translate-x-0'))toggleDrawer();
+ window.scrollTo({top:0,behavior:'smooth'});
+}
+function el(id){return document.getElementById(id)}
+function esc(v){return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;')}
+
+function gridStats(g=state.grid){
+ const a=g.flat().map(Number).filter(Number.isFinite); const min=Math.min(...a),max=Math.max(...a),mean=a.reduce((x,y)=>x+y,0)/a.length;
+ return {min,max,mean,relief:max-min};
+}
+function makePreset(type){
+ const r=state.rows,c=state.cols;
+ state.grid=Array.from({length:r},(_,i)=>Array.from({length:c},(_,j)=>{
+   if(type==='dome') return Number((100+22*Math.exp(-(((i-(r-1)/2)**2+(j-(c-1)/2)**2)/Math.max(1,r*c/6)))).toFixed(1));
+   if(type==='slope') return Number((150-6*i-4*j).toFixed(1));
+   return Number((100+20*Math.sin(i*.8)+16*Math.cos(j*.65)+8*Math.sin((i+j)*.9)).toFixed(1));
+ }));
+ render();
+}
+function resizeGrid(){
+ const r=+el('rows').value,c=+el('cols').value;
+ const old=state.grid; state.rows=r;state.cols=c;
+ state.grid=Array.from({length:r},(_,i)=>Array.from({length:c},(_,j)=>old[i]?.[j] ?? 100));
+ render();
+}
+function gridEditor(){
+ let s='<div class="overflow-auto rounded-xl border border-slate-700"><table class="border-collapse">';
+ s+='<thead><tr><th class="p-2 bg-slate-800 text-xs">Row / Col</th>'+Array.from({length:state.cols},(_,j)=>`<th class="p-2 bg-slate-800 text-xs">C${j+1}</th>`).join('')+'</tr></thead><tbody>';
+ for(let i=0;i<state.rows;i++){s+=`<tr><th class="p-2 bg-slate-900 text-xs">R${i+1}</th>`;
+   for(let j=0;j<state.cols;j++)s+=`<td class="border border-slate-800 p-1"><input class="grid-cell input" type="number" step="0.1" value="${state.grid[i][j]}" onchange="state.grid[${i}][${j}]=+this.value;drawConstruct()"></td>`;
+   s+='</tr>';
+ } return s+'</tbody></table></div>';
+}
+function metricsHTML(st){
+ return `<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+ ${[['Minimum',st.min],['Maximum / Crest',st.max],['Mean',st.mean],['Relief',st.relief]].map(x=>`<div class="metric rounded-xl p-4"><div class="text-xs text-slate-400">${x[0]}</div><div class="text-xl font-black mt-1">${x[1].toFixed(2)} m</div></div>`).join('')}</div>`;
+}
+function drawPlots(g=state.grid,id2='plot2d',id3='plot3d',title='Contour / Surface'){
+ const z=g,x=g[0].map((_,j)=>j+1),y=g.map((_,i)=>i+1);
+ const common={margin:{l:45,r:15,t:45,b:40},paper_bgcolor:'#0f172a',plot_bgcolor:'#0f172a',font:{color:'#cbd5e1'}};
+ Plotly.newPlot(id2,[{z,x,y,type:'contour',colorscale:'Viridis',contours:{showlabels:true}}],{...common,title:title+' — 2D Contour',xaxis:{title:'Column'},yaxis:{title:'Row',autorange:'reversed'},coloraxis:{colorbar:{title:'m'}}},{responsive:true,displaylogo:false}); 
+ Plotly.newPlot(id3,[{z,x,y,type:'surface',colorscale:'Viridis',contours:{z:{show:true,usecolormap:true,highlightcolor:'#fff'}}}],{...common,title:title+' — 3D Surface',scene:{xaxis:{title:'Column'},yaxis:{title:'Row'},zaxis:{title:'Elevation / Depth (m)'}},showlegend:false},{responsive:true,displaylogo:false});
+}
+// === PYTHON PIPELINE INTEGRATION: SLOPE & EARTHWORK (CUT/FILL) ===
+function computeSlopeStats(g) {
+  const r = g.length, c = g[0].length;
+  let slopes = [];
+  for (let i = 0; i < r; i++) {
+    for (let j = 0; j < c; j++) {
+      let dz_dx = (j < c - 1) ? g[i][j+1] - g[i][j] : (j > 0 ? g[i][j] - g[i][j-1] : 0);
+      let dz_dy = (i < r - 1) ? g[i+1][j] - g[i][j] : (i > 0 ? g[i][j] - g[i-1][j] : 0);
+      let slope = Math.sqrt(dz_dx * dz_dx + dz_dy * dz_dy) * 100; // Slope in %
+      slopes.push(slope);
+    }
+  }
+  const meanSlope = slopes.reduce((a, b) => a + b, 0) / slopes.length;
+  const maxSlope = Math.max(...slopes);
+  return { meanSlope, maxSlope };
+}
+
+function computeCutFill(g, formationLevel = 105.0, cellSize = 10.0) {
+  const cellArea = cellSize * cellSize;
+  let cutVol = 0, fillVol = 0;
+  for (let i = 0; i < g.length; i++) {
+    for (let j = 0; j < g[0].length; j++) {
+      let diff = formationLevel - g[i][j]; // diff > 0 -> Fill; diff < 0 -> Cut
+      if (diff > 0) fillVol += diff * cellArea;
+      else cutVol += Math.abs(diff) * cellArea;
+    }
+  }
+  return { cutVol, fillVol, netVol: cutVol - fillVol };
+}
+function crests(g){
+ const out=[];const r=g.length,c=g[0].length;
+ for(let i=0;i<r;i++)for(let j=0;j<c;j++){
+  let high=true; for(let di=-1;di<=1;di++)for(let dj=-1;dj<=1;dj++){if(!di&&!dj)continue;let ni=i+di,nj=j+dj;if(ni>=0&&ni<r&&nj>=0&&nj<c&&g[ni][nj]>g[i][j])high=false;}
+  if(high)out.push({row:i+1,col:j+1,value:g[i][j]});
+ }
+ return out.sort((a,b)=>b.value-a.value);
+}
+function recommendation(g){
+ const cs=crests(g), top=cs.slice(0,Math.min(3,cs.length));
+ if(!top.length)return 'No local high points were detected.';
+ return `Potential structural highs were detected. For an educational screening workflow, the highest ${top.length} local crest cell(s) are prioritized for further geological and seismic validation. Highest candidate: Row ${top[0].row}, Column ${top[0].col}, ${top[0].value.toFixed(2)} m. This is not a field drilling authorization.`;
+}
+function drawConstruct(){
+ if(el('plot2d')&&el('plot3d'))drawPlots(state.grid,'plot2d','plot3d','Constructed Map');
+}
+function renderConstruct(){
+ const st=gridStats();
+ const slopes=computeSlopeStats(state.grid);
+ const earthwork=computeCutFill(state.grid, 105.0, 10.0); // Target RL: 105m, Grid Step: 10m
+
+ el('content').innerHTML=`<div class="space-y-6">
+ <div><div class="section-title">Construct a Map</div><p class="muted mt-1">Enter a Z-value grid and inspect synchronized 2D, 3D and reservoir-structure analysis.</p></div>
+ <div class="card bg-slate-900 rounded-2xl p-4 space-y-4">
+  <div class="flex flex-wrap gap-3 items-end">
+   <label class="w-28 text-sm">Rows<input id="rows" class="input mt-1" type="number" min="3" max="25" value="${state.rows}"></label>
+   <label class="w-28 text-sm">Columns<input id="cols" class="input mt-1" type="number" min="3" max="25" value="${state.cols}"></label>
+   <button class="btn" onclick="resizeGrid()">Apply Grid</button>
+   <button class="btn2" onclick="makePreset('dome')">Dome Trap Preset</button>
+   <button class="btn2" onclick="makePreset('slope')">Linear Slope</button>
+   <button class="btn2" onclick="makePreset('random')">Random Terrain</button>
+  </div>${gridEditor()}</div>
+ <div class="card bg-slate-900 rounded-2xl p-4"><div class="section-title mb-3">2D Contour Map</div><div id="plot2d" class="plot"></div></div>
+ <div class="card bg-slate-900 rounded-2xl p-4"><div class="section-title mb-3">3D Interactive Surface Map</div><div id="plot3d" class="plot"></div></div>
+ 
+ <!-- PYTHON DERIVED MODULE: Slope & Earthwork Volumetrics -->
+ <div class="card bg-slate-900 rounded-2xl p-4 space-y-4">
+   <div class="section-title">Differential Slope & Earthwork Calculations</div>
+   <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+     <div class="metric rounded-xl p-4"><div class="text-xs text-slate-400">Mean Slope</div><div class="text-xl font-black mt-1">${slopes.meanSlope.toFixed(2)} %</div></div>
+     <div class="metric rounded-xl p-4"><div class="text-xs text-slate-400">Max Slope</div><div class="text-xl font-black mt-1">${slopes.maxSlope.toFixed(2)} %</div></div>
+     <div class="metric rounded-xl p-4"><div class="text-xs text-slate-400">Cut Vol (RL: 105m)</div><div class="text-xl font-black mt-1 text-rose-400">${earthwork.cutVol.toLocaleString(undefined, {maximumFractionDigits:1})} m³</div></div>
+     <div class="metric rounded-xl p-4"><div class="text-xs text-slate-400">Fill Vol (RL: 105m)</div><div class="text-xl font-black mt-1 text-emerald-400">${earthwork.fillVol.toLocaleString(undefined, {maximumFractionDigits:1})} m³</div></div>
+   </div>
+ </div>
+
+ <div class="card bg-slate-900 rounded-2xl p-4 space-y-4"><div class="section-title">Integrated Depth & Hydrocarbon Analysis</div>${metricsHTML(st)}
+ <div class="p-4 rounded-xl bg-slate-800"><div class="font-bold">Potential structural highs</div><div class="mt-2 text-sm">${crests(state.grid).slice(0,8).map(c=>`R${c.row}, C${c.col} — ${c.value.toFixed(2)} m`).join('<br>')||'None'}</div></div>
+ <div class="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10"><div class="font-bold text-amber-200">Recommended Drilling Sites — educational screening</div><p class="text-sm text-slate-300 mt-2">${recommendation(state.grid)}</p></div>
+ </div></div>`;
+ drawConstruct();
+}
+function renderNotes(){
+ const topic=state.noteTopic==='2d'?'Overview of 2D Contour Map':'Overview of 3D Surface Map';
+ const page=state.notePage;
+ const sections=state.noteTopic==='2d'?[
+  ['Definition & Purpose','A contour map represents a continuous variable using lines joining equal values. In topographic work, contour lines connect equal elevation relative to a datum. In petroleum mapping, the same principle can represent structural elevation or depth surfaces.'],
+  ['Contour Interval & Index Contours','Contour interval is the constant vertical difference between adjacent contours. Index contours are emphasized reference lines, usually at a regular multiple of the contour interval. Horizontal equivalent is the ground distance between successive contours measured along a line perpendicular to them.'],
+  ['Spacing & Slope','Close contour spacing indicates a steep gradient; wide spacing indicates a gentle gradient. Uniform spacing suggests a relatively uniform slope. Convex and concave profiles are diagnosed by how spacing changes along the slope. A vertical cliff is represented by contours that become extremely close or overlap in stylized mapping.'],
+  ['Landforms','Closed contours with increasing values toward the center indicate a hill. Elongated highs form ridges. V-shaped contours commonly indicate valleys, while closed low values can represent depressions or basins. A saddle/col is a low pass between two higher areas.'],
+  ['Industrial Applications','Petroleum geoscience uses structural contour maps to identify folds, domes and closures. Mining uses elevation/depth surfaces for ore-depth estimation. Civil engineers use terrain surfaces for cut-and-fill planning. Hydrogeologists map water tables and catchments. Meteorologists use analogous isopleths such as isobars and isotherms.']
+ ]:[
+  ['3D Coordinate Geometry','A 3D surface is represented by X, Y and Z coordinates. X and Y define horizontal position; Z is elevation, depth, or another scalar field. A gridded surface stores Z values at regularly spaced X-Y locations.'],
+  ['Surface Mesh','Adjacent grid points form quadrilateral cells that can be rendered as a mesh. Color can encode Z while vertical geometry shows relief. Interactive 3D scenes allow orbit rotation, zoom, pan and point hover inspection.'],
+  ['Reservoir Structures','Anticlines and domes can create structural closures. A basin/depression is a low relative surface. Ridges are elongated highs. Fault planes may offset or truncate surfaces and should be interpreted alongside geological and seismic evidence.'],
+  ['Gradient & Relief','Relief is Zmax − Zmin. A local slope can be estimated from neighboring grid values and horizontal spacing. Surface gradients can be visualized as color, vectors or slope profiles.'],
+  ['Applications','3D surfaces support reservoir structure interpretation, mine planning, civil grading, hydrogeology and scientific visualization. In professional workflows, gridded interpretation is combined with wells, seismic data, datum definitions, uncertainty and quality control.']
+ ];
+ const base=sections[(page-1)%sections.length];
+ let pages=`<div class="flex flex-wrap gap-2 max-h-36 overflow-auto">${Array.from({length:50},(_,i)=>`<button onclick="state.notePage=${i+1};renderNotes()" class="px-3 py-1 rounded-lg text-xs ${i+1===page?'bg-sky-600':'bg-slate-800'}">${i+1}</button>`).join('')}</div>`;
+ el('content').innerHTML=`<div class="space-y-6"><div><div class="section-title">Notes</div><p class="muted">Comprehensive 50-page learning paths for 2D and 3D mapping concepts.</p></div>
+ <div class="card bg-slate-900 rounded-2xl p-4 flex flex-wrap gap-3 items-center"><select class="select" onchange="state.noteTopic=this.value;state.notePage=1;renderNotes()"><option value="2d" ${state.noteTopic==='2d'?'selected':''}>Overview of 2D Contour Map</option><option value="3d" ${state.noteTopic==='3d'?'selected':''}>Overview of 3D Surface Map</option></select><div class="font-bold">Page ${page} / 50</div></div>
+ <div class="card bg-slate-900 rounded-2xl p-5 space-y-5"><h2 class="text-2xl font-black">${topic} — Page ${page}</h2><div class="grid md:grid-cols-2 gap-4">${base.map(s=>`<article class="rounded-xl bg-slate-800 p-4"><h3 class="font-bold text-sky-300">${s[0]}</h3><p class="text-sm text-slate-300 mt-2 leading-7">${s[1]}</p></article>`).join('')}</div><div><h3 class="font-bold mb-2">Page navigation</h3>${pages}</div></div></div>`;
+}
+function parseRawGrid(){
+ const lines=state.depthGrid.trim().split(/\r?\n+/).filter(Boolean);
+ return lines.map(l=>l.split(/[,\\s]+/).map(Number)).filter(r=>r.every(Number.isFinite)&&r.length);
+}
+function renderDepth(){
+ el('content').innerHTML=`<div class="space-y-6"><div><div class="section-title">Depth Calculation & Oil Judgment</div><p class="muted">Standalone grid-analysis engine without map rendering.</p></div>
+ <div class="card bg-slate-900 rounded-2xl p-4"><label class="text-sm">Paste rows of Z values (spaces or commas)</label><textarea id="depthInput" class="input mt-2 h-52 font-mono" placeholder="120 125 130&#10;118 128 135&#10;110 122 132">${state.depthGrid}</textarea><div class="flex gap-2 mt-3"><button class="btn" onclick="runDepth()">Analyze Grid</button><button class="btn2" onclick="el('depthInput').value='';state.depthGrid=''">Clear</button></div></div>
+ <div id="depthResult"></div></div>`;
+}
+function runDepth(){
+ state.depthGrid=el('depthInput').value; const g=parseRawGrid();
+ if(!g.length){el('depthResult').innerHTML='<div class="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">Enter a valid rectangular numeric grid.</div>';return}
+ if(!g.every(r=>r.length===g[0].length)){el('depthResult').innerHTML='<div class="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">All rows must contain the same number of values.</div>';return}
+ const st=gridStats(g),cs=crests(g);
+ let slopes=[];for(let i=0;i<g.length;i++)for(let j=0;j<g[0].length;j++){if(j<g[0].length-1)slopes.push(Math.abs(g[i][j+1]-g[i][j]));if(i<g.length-1)slopes.push(Math.abs(g[i+1][j]-g[i][j]))}
+ const avgSlope=slopes.reduce((a,b)=>a+b,0)/slopes.length;
+ el('depthResult').innerHTML=`<div class="space-y-4"><div>${metricsHTML(st)}</div><div class="grid md:grid-cols-2 gap-4"><div class="card bg-slate-900 rounded-2xl p-4"><h3 class="font-bold">Slope gradient metric</h3><p class="text-sm text-slate-300 mt-2">Mean absolute adjacent-cell Z change: <b>${avgSlope.toFixed(3)} m/grid-step</b>.</p></div><div class="card bg-slate-900 rounded-2xl p-4"><h3 class="font-bold">Geological evaluation</h3><p class="text-sm text-slate-300 mt-2">The highest local cells represent structural highs in this simplified surface model. A positive relief and closed local high can be consistent with a dome/anticline-style structural closure, but real reservoir judgment requires datum control, seismic interpretation, well ties, fault framework, fluid contacts and uncertainty analysis.</p></div></div>
+ <div class="card bg-slate-900 rounded-2xl p-4"><h3 class="font-bold">Candidate structural highs</h3><div class="text-sm mt-2">${cs.slice(0,10).map(c=>`R${c.row}, C${c.col}: ${c.value.toFixed(2)} m`).join('<br>')}</div></div></div>`;
+}
+function sandboxGrid(type){
+ const r=14,c=18;let g=Array.from({length:r},(_,i)=>Array.from({length:c},(_,j)=>100));
+ if(type==='dome')g=g.map((row,i)=>row.map((_,j)=>100+35*Math.exp(-(((i-6.5)**2+(j-8.5)**2)/28))));
+ if(type==='basin')g=g.map((row,i)=>row.map((_,j)=>140-35*Math.exp(-(((i-6.5)**2+(j-8.5)**2)/30))));
+ if(type==='ridge')g=g.map((row,i)=>row.map((_,j)=>100+28*Math.exp(-((j-9)**2)/10)));
+ if(type==='fault')g=g.map((row,i)=>row.map((_,j)=>100+2*i+(j>9?25:0)));
+ return g;
+}
+function renderSandbox(){
+ const g=sandboxGrid(state.sandbox);
+ el('content').innerHTML=`<div class="space-y-6"><div><div class="section-title">2D & 3D Interactive Maps</div><p class="muted">Synchronized geological playground presets for study and visual inspection.</p></div>
+ <div class="flex flex-wrap gap-2">${[['dome','Anticline Dome'],['basin','Basin / Depression'],['fault','Fault Plane'],['ridge','Ridge']].map(x=>`<button onclick="state.sandbox='${x[0]}';renderSandbox()" class="${state.sandbox===x[0]?'btn':'btn2'}">${x[1]}</button>`).join('')}</div>
+ <div class="grid lg:grid-cols-2 gap-5"><div class="card bg-slate-900 rounded-2xl p-3"><div id="sand2d" class="plot"></div></div><div class="card bg-slate-900 rounded-2xl p-3"><div id="sand3d" class="plot"></div></div></div></div>`;
+ drawPlots(g,'sand2d','sand3d',state.sandbox.toUpperCase());
+}
+const quizBank={
+ "2d":[
+  {q:'What do contour lines connect?',o:['Equal values','Equal distances','Equal rock types','Equal temperatures only'],a:0,e:'A contour line joins locations with the same mapped scalar value, commonly elevation.'},
+  {q:'What does close contour spacing usually indicate?',o:['Gentle slope','Steep slope','Flat water','A basin only'],a:1,e:'Closer contours mean the value changes rapidly over a short horizontal distance.'},
+  {q:'What is contour interval?',o:['Horizontal map width','Vertical difference between adjacent contours','Map scale','Grid row count'],a:1,e:'Contour interval is the constant vertical difference between successive contours.'},
+  {q:'A closed high-value contour pattern commonly represents what?',o:['Hill or structural high','Valley','Fault only','River discharge'],a:0,e:'Increasing values toward a closed center commonly indicate a topographic or structural high.'},
+  {q:'What is relief?',o:['Zmax − Zmin','Zmax + Zmin','Mean × area','Slope ÷ distance'],a:0,e:'Relief is the difference between the maximum and minimum mapped values.'},
+  {q:'A saddle/col is best described as...',o:['A high peak','A low pass between highs','A circular basin','A vertical cliff'],a:1,e:'A saddle is a relatively low connection between two higher areas.'},
+  {q:'Which application uses structural contour maps?',o:['Petroleum interpretation','Only meteorology','Only navigation','Only oceanography'],a:0,e:'Structural contour maps help visualize folds, domes, closures and other reservoir geometry.'},
+  {q:'Isobars connect points of equal...',o:['Temperature','Pressure','Elevation','Depth'],a:1,e:'Isobars are equal-pressure lines used in meteorology.'},
+  {q:'Wide, evenly spaced contours generally indicate...',o:['Uniform gentle slope','Vertical cliff','Strong local peak','Fault throw'],a:0,e:'Wide regular spacing indicates a relatively gentle and uniform gradient.'},
+  {q:'A depression may be represented by...',o:['Closed contours with decreasing values inward','Only straight contours','Only widely spaced contours','No contours'],a:0,e:'A closed depression has values that decrease toward its center, often marked with hachures on conventional maps.'}
+  ],
+ "3d":[
+  {q:'What are the basic coordinates of a 3D surface?',o:['X, Y, Z','A, B, C','R, G, B','Lat, pressure, time'],a:0,e:'X and Y locate a point horizontally; Z represents elevation, depth or another scalar.'},
+  {q:'What does a 3D surface mesh connect?',o:['Adjacent grid points','Only highest points','Only wells','Only contour labels'],a:0,e:'A mesh connects neighboring sampled points to form a continuous visual surface.'},
+  {q:'What is a local structural high?',o:['A cell higher than its neighbors','The minimum cell','The average cell','A missing value'],a:0,e:'A local high exceeds the values of surrounding neighboring cells.'},
+  {q:'What does a 3D surface color scale commonly encode?',o:['Z value or another scalar','File size','Username','Map title'],a:0,e:'Color is commonly mapped to Z or another measured property.'},
+  {q:'What operation gives relief?',o:['Maximum minus minimum','Maximum plus minimum','Mean divided by area','Slope times time'],a:0,e:'Relief = maximum mapped value − minimum mapped value.'},
+  {q:'A dome is generally characterized by...',o:['A localized structural high','A localized low only','A flat plane','A vertical line'],a:0,e:'A dome is a roughly circular structural high, subject to geological interpretation.'},
+  {q:'A fault plane may produce...',o:['An offset surface','Only a color change','No geometry','Only a contour label'],a:0,e:'Faulting can offset or juxtapose surfaces across a discontinuity.'},
+  {q:'Why is hover interaction useful?',o:['To inspect point values','To remove uncertainty','To prove a reservoir exists','To replace seismic data'],a:0,e:'Hover readouts help inspect exact plotted coordinates and values.'},
+  {q:'A 3D map is most useful when...',o:['Surface geometry needs spatial inspection','No data exists','Only text is required','Coordinates are forbidden'],a:0,e:'3D visualization is useful for understanding spatial relief, geometry and relationships.'},
+  {q:'Should an educational crest detector alone authorize drilling?',o:['Yes','No','Only for domes','Only for large grids'],a:1,e:'Drilling requires integrated geological, geophysical, petrophysical, engineering and risk analysis.'}
+ ]
+}
+
+function renderQuiz(){
+ const bank=quizBank[state.quizSubject], qs=bank; // deterministic 10 targeted questions per study page
+ el('content').innerHTML=`<div class="space-y-6"><div><div class="section-title">Interactive Quiz with Page Customization</div><p class="muted">Select a subject and study page; the quiz is generated from the matching learning theme.</p></div>
+ <div class="card bg-slate-900 rounded-2xl p-4 flex flex-wrap gap-3"><select class="select" onchange="state.quizSubject=this.value;state.quizSubmitted=false;state.quizAnswers={};renderQuiz()"><option value="2d" ${state.quizSubject==='2d'?'selected':''}>Overview of 2D Map</option><option value="3d" ${state.quizSubject==='3d'?'selected':''}>Overview of 3D Map</option></select>
+ <select class="select" onchange="state.quizPage=+this.value;state.quizSubmitted=false;state.quizAnswers={};renderQuiz()">${Array.from({length:30},(_,i)=>`<option value="${i+1}" ${state.quizPage===i+1?'selected':''}>Page ${i+1}</option>`).join('')}</select></div>
+ <form onsubmit="submitQuiz(event)" class="space-y-4">${qs.map((q,i)=>`<div class="card bg-slate-900 rounded-2xl p-4"><div class="font-bold">${i+1}. ${q.q}</div><div class="grid md:grid-cols-2 gap-2 mt-3">${q.o.map((o,j)=>`<label class="flex gap-2 p-3 rounded-lg bg-slate-800 hover:bg-slate-700 cursor-pointer"><input type="radio" name="q${i}" value="${j}" ${state.quizAnswers[i]===j?'checked':''}>${o}</label>`).join('')}</div>${state.quizSubmitted?`<div class="mt-3 text-sm ${state.quizAnswers[i]===q.a?'text-emerald-300':'text-rose-300'}">${state.quizAnswers[i]===q.a?'Correct.':'Incorrect.'} ${q.e}</div>`:''}</div>`).join('')}
+ <button class="btn" type="submit">Submit Quiz</button></form>${state.quizSubmitted?quizReport(qs):''}</div>`;
+}
+
+function submitQuiz(e){e.preventDefault();state.quizAnswers={};quizBank[state.quizSubject].forEach((_,i)=>{const x=document.querySelector(`input[name="q${i}"]:checked`);if(x)state.quizAnswers[i]=+x.value});state.quizSubmitted=true;renderQuiz()}
+function quizReport(qs){
+ const score=qs.reduce((n,q,i)=>n+(state.quizAnswers[i]===q.a?1:0),0);
+ return `<div class="card bg-slate-900 rounded-2xl p-5"><div class="text-3xl font-black">${score} / 10</div><div class="text-sky-300 font-bold">${score*10}%</div><p class="muted mt-2">Answer review and corrective geological explanations are shown under each question.</p></div>`;
+}
+function render(){
+ if(state.page==='notes')renderNotes();
+ else if(state.page==='construct')renderConstruct();
+ else if(state.page==='depth')renderDepth();
+ else if(state.page==='sandbox')renderSandbox();
+ else renderQuiz();
+}
+</script>
+</body>
+</html>
